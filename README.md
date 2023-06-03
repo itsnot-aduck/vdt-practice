@@ -11,7 +11,7 @@ Lưu ý: Mỗi bản tin gửi lên thiết bị sẽ đăng ký sub ở topic `
 
 ## Ý tưởng thuật toán
 ### Điều khiển bằng nhấn nút
-``` Ý tưởng: Mỗi khi nhấn nút sẽ chờ nút ấn tiếp theo trong khoảng 2s, nếu không được ấn thêm lần nào nữa thì cho ra số lần ấn```
+` Ý tưởng`: Mỗi khi nhấn nút sẽ chờ nút ấn tiếp theo trong khoảng 2s, nếu không được ấn thêm lần nào nữa thì cho ra số lần ấn
 Chúng em sử dụng 1 hàm ngắt và đẩy giá trị vào trong Queue, một hàm khác sẽ chờ Queue với TimeOut là 2s, nếu có thì cộng thêm số lần ngắt, nếu không còn thêm lần bấm nào thì trả về số lần bấm. 
 ```
 static void IRAM_ATTR gpio_isr_handler(void* arg)
@@ -37,7 +37,7 @@ static void btn_handle(void* arg)
 Sau khi handle xong với số lần bấm ta trả về số lần đếm là 0
 ### Nhận kết quả trạng thái và điều khiển led
 Kết quả nhận về từ MQTT Server có dạng `{"led": 2, "status": "on"}` hoặc `{"led": 2, "status": "off"}`
-- Chúng em tìm kiếm 2 chuỗi `"on"` và `"off"`, nếu tìm thấy 2 chuỗi này thì tương ứng với trạng thái 1 và 0
+- Tìm kiếm 2 chuỗi `"on"` và `"off"`, nếu tìm thấy 2 chuỗi này thì tương ứng với trạng thái 1 và 0
 - Tiến hành tách chuỗi để tìm giá trị của chân và dùng hàm để set giá trị logic cho chân GPIO. 
 ```
     char* token;
@@ -65,6 +65,24 @@ if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
         xTaskCreate(smartconfig_example_task, "smartconfig_example_task", 4096, NULL, 3, NULL);
 ``` 
 Khá bất ngờ vì task `smartconfig_example_task` vẫn có thể được gọi lại ngay cả khi đã xóa task
+
+### Gửi định kì bản tin
+Chúng em xây dựng một SoftTimer cho task gửi bản tin về heartbeat lên, thời gian reload là `60s`
+```
+    TimerHandle_t timer;
+    ...
+    timer = xTimerCreate("Timer", 60000/portTICK_PERIOD_MS, pdTRUE, (void*) 0, timer_handler);
+    ...
+```
+Khi có tín hiệu MQTT kết nối thành công thì bắt đầu SoftTimer
+```
+    case MQTT_EVENT_CONNECTED:
+        xTimerStart(timer, portMAX_DELAY);
+```
+Khi ngưng kết nối MQTT thì tắt SoftTimer
+```
+        xTimerStop(timer, portMAX_DELAY);
+```
 ### Chờ phản hồi từ MQTT
 Mỗi khi bản tin gửi từ mqtt về MCU, một giá trị dùng để `ack` được đẩy vào Queue. Mỗi khi thiết bị publish bản tin, chúng luôn chờ đợi thông tin trong Queue. Hết 20s nếu hàm xQueueReceive trả về giá trị 0 thì thiết bị đẩy lại bản tin và chờ đợi tiếp
 ```

@@ -290,7 +290,7 @@ void app_main(void)
     gpio_config(&io_conf);
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
     mqttQueue = xQueueCreate(10, sizeof(uint32_t));
-    timer = xTimerCreate("Timer", 10000/portTICK_PERIOD_MS, pdTRUE, (void*) 0, timer_handler);
+    timer = xTimerCreate("Timer", 60000/portTICK_PERIOD_MS, pdTRUE, (void*) 0, timer_handler);
     xTaskCreate(btn_handle, "gpio_task_example", 3072, NULL, 10, NULL);
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     gpio_isr_handler_add(GPIO_NUM_0, gpio_isr_handler, (void*) GPIO_NUM_0);
