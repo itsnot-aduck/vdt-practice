@@ -141,10 +141,10 @@ void timer_handler(){
         sprintf(mess, "{\"heartbeat\": 1}");
         esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
         while(xQueueReceive(mqttQueue, buffer, 20000/portTICK_PERIOD_MS)==0)
-            {
+        {
             esp_mqtt_client_publish(client, "messages/messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",
                                                                                     mess, strlen(mess), 0,0);
-            }   
+        }   
 }
 
 static void smartconfig_example_task(void * parm);
@@ -262,11 +262,11 @@ static void btn_handle(void* arg)
                 }
                 else if (count ==4){
                     ESP_LOGI(TAG, "Smart config!");
+                    xTimerStop(timer, portMAX_DELAY);
                     esp_mqtt_client_stop(client);
                     esp_wifi_disconnect();
                     esp_wifi_stop();
                     esp_wifi_start();
-                    xTimerStop(timer, portMAX_DELAY);
                 }
                 else{
                     ESP_LOGI(TAG, "Nothing");
