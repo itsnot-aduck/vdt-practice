@@ -36,6 +36,7 @@ static const char *TAG = "PJ";
 
 int count = 0;
 int pin = 2, status = 0;
+int mqtt_sent;
 static xQueueHandle gpio_evt_queue = NULL;
 static xQueueHandle mqttQueue = NULL;
 char buffer[100];
@@ -91,7 +92,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         data = event->data;
         if((strstr(event->topic,"status"))&&(strstr(event->data,"code"))){
             ESP_LOGI(TAG, "code response received");
-            xQueueSend(mqttQueue, (void*) data , portMAX_DELAY);
         }
         else if(strstr(event->data, "led"))
         {
@@ -106,7 +106,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
             pin = atoi(token);
             ESP_LOGI(TAG, "pin: %d, status: %d", pin, status);
             gpio_set(pin, status);
-            xQueueReceive(mqttQueue, buffer, portMAX_DELAY);
+        }
+        if(mqtt_sent == 1){
+            xQueueSend(mqttQueue, (void*) data , portMAX_DELAY);
+            mqtt_sent = 0;
         }
         break;
     case MQTT_EVENT_ERROR:
@@ -140,10 +143,12 @@ void timer_handler(){
         char mess[100];
         sprintf(mess, "{\"heartbeat\": 1}");
         esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
+        mqtt_sent = 1;
         while(xQueueReceive(mqttQueue, buffer, 20000/portTICK_PERIOD_MS)==0)
         {
             esp_mqtt_client_publish(client, "messages/messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",
                                                                                     mess, strlen(mess), 0,0);
+            mqtt_sent = 1;
         }   
 }
 
@@ -254,11 +259,13 @@ static void btn_handle(void* arg)
                         sprintf(mess, "{\"led\": %d, \"status\": \"on\"}", pin);
                     }
                     esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
+                    mqtt_sent = 1;
                     while(xQueueReceive(mqttQueue, buffer, 20000/portTICK_PERIOD_MS)==0)
-                        {
+                    {
                         esp_mqtt_client_publish(client, "messages/messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update", 
                                                                                                 mess, strlen(mess), 0,0);
-                        }  
+                        mqtt_sent = 1;
+                    }  
                 }
                 else if (count ==4){
                     ESP_LOGI(TAG, "Smart config!");
