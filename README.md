@@ -11,8 +11,7 @@ Lưu ý: Mỗi bản tin gửi lên thiết bị sẽ đăng ký sub ở topic `
 
 ## Ý tưởng thuật toán
 ### Điều khiển bằng nhấn nút
-` Ý tưởng`: Mỗi khi nhấn nút sẽ chờ nút ấn tiếp theo trong khoảng 2s, nếu không được ấn thêm lần nào nữa thì cho ra số lần ấn\n
-Chúng em sử dụng 1 hàm ngắt và đẩy giá trị vào trong Queue, một hàm khác sẽ chờ Queue với TimeOut là 2s, nếu có thì cộng thêm số lần ngắt, nếu không còn thêm lần bấm nào thì trả về số lần bấm. 
+` Ý tưởng`: Mỗi khi nhấn nút sẽ chờ nút ấn tiếp theo trong khoảng 2s, nếu không được ấn thêm lần nào nữa thì cho ra số lần ấn. Chúng em sử dụng 1 hàm ngắt và đẩy giá trị vào trong Queue, một hàm khác sẽ chờ Queue với TimeOut là 2s, nếu có thì cộng thêm số lần ngắt, nếu không còn thêm lần bấm nào thì trả về số lần bấm. 
 ```
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
