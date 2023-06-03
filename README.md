@@ -77,7 +77,7 @@ Chúng em xây dựng một SoftTimer cho task gửi bản tin về heartbeat l�
 Khi có tín hiệu MQTT kết nối thành công thì bắt đầu SoftTimer
 ```
     case MQTT_EVENT_CONNECTED:
-        xTimerStart(timer, portMAX_DELAY);
+        xTimerReset(timer, portMAX_DELAY);
 ```
 Khi ngưng kết nối MQTT thì tắt SoftTimer
 ```

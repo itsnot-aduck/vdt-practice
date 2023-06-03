@@ -71,7 +71,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
         esp_mqtt_client_subscribe(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", 0);
-        xTimerStart(timer, portMAX_DELAY);
+        xTimerReset(timer, portMAX_DELAY);
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
