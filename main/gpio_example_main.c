@@ -25,12 +25,9 @@
 
 static EventGroupHandle_t s_wifi_event_group;
 static esp_mqtt_client_handle_t client;
-QueueHandle_t mqttQueue;
-/* The event group allows multiple bits for each event,
-   but we only care about one event - are we connected
-   to the AP with an IP? */
 static const int CONNECTED_BIT = BIT0;
 static const int ESPTOUCH_DONE_BIT = BIT1;
+smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
 static const char *TAG = "PJ";
 #define device_ID "892cae43-bd95-4a6f-a257-5fba424ab86f"
 #define MQTT_Broker "mqtt://mqtt.innoway.vn"
@@ -39,8 +36,10 @@ static const char *TAG = "PJ";
 
 int count = 0;
 int pin = 2, status = 0;
-int mqtt_buffer;
 static xQueueHandle gpio_evt_queue = NULL;
+static xQueueHandle mqttQueue = NULL;
+char buffer[100];
+TimerHandle_t timer;
 
 void gpio_set(int pin, int status){
     gpio_config_t io_conf;
@@ -60,15 +59,6 @@ static void log_error_if_nonzero(const char *message, int error_code)
     }
 }
 
-void timer_handler(){
-    ESP_LOGI(TAG, "TOPIC heartbeat Publish");
-    const char message[] = "{\"heartbeat\":1}";
-    esp_mqtt_client_publish(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", message, strlen(message), 0,0);
-    // while(xQueueReceive(mqttQueue, mqtt_buffer, 20000/portTICK_PERIOD_MS)==0){
-    //     esp_mqtt_client_publish(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", message, strlen(message), 0,0);
-    // }
-}
-
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                     int32_t event_id, void *event_data)
 {
@@ -81,7 +71,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
         esp_mqtt_client_subscribe(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", 0);
-        TimerHandle_t timer = xTimerCreate("Timer", 60000/portTICK_PERIOD_MS, pdTRUE, (void*) 0, timer_handler);
         xTimerStart(timer, portMAX_DELAY);
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -99,12 +88,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
         printf("DATA=%.*s\r\n", event->data_len, event->data);
+        data = event->data;
         if((strstr(event->topic,"status"))&&(strstr(event->data,"code"))){
-            // ESP_LOGI(TAG, "code response received");
-            // xQueueSend(mqttQueue, (void*) 1, portMAX_DELAY);
+            ESP_LOGI(TAG, "code response received");
+            xQueueSend(mqttQueue, (void*) data , portMAX_DELAY);
         }
-        else{
-            data = event->data;
+        else if(strstr(event->data, "led"))
+        {
             char* token;
             if(strstr(data, "on"))
             {
@@ -116,6 +106,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
             pin = atoi(token);
             ESP_LOGI(TAG, "pin: %d, status: %d", pin, status);
             gpio_set(pin, status);
+            xQueueReceive(mqttQueue, buffer, portMAX_DELAY);
         }
         break;
     case MQTT_EVENT_ERROR:
@@ -140,9 +131,20 @@ void mqtt_init(){
 		.username = "VHT_DEV"
     };
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
-    /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
+}
+
+void timer_handler(){
+        ESP_LOGI(TAG, "TOPIC heartbeat Publish");
+        char mess[100];
+        sprintf(mess, "{\"heartbeat\": 1}");
+        esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
+        while(xQueueReceive(mqttQueue, buffer, 20000/portTICK_PERIOD_MS)==0)
+            {
+            esp_mqtt_client_publish(client, "messages/messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",
+                                                                                    mess, strlen(mess), 0,0);
+            }   
 }
 
 static void smartconfig_example_task(void * parm);
@@ -163,7 +165,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Found channel");
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_GOT_SSID_PSWD) {
         ESP_LOGI(TAG, "Got SSID and password");
-
         smartconfig_event_got_ssid_pswd_t *evt = (smartconfig_event_got_ssid_pswd_t *)event_data;
         wifi_config_t wifi_config;
         uint8_t ssid[33] = { 0 };
@@ -211,7 +212,6 @@ static void smartconfig_example_task(void * parm)
 {
     EventBits_t uxBits;
     ESP_ERROR_CHECK( esp_smartconfig_set_type(SC_TYPE_ESPTOUCH) );
-    smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     ESP_ERROR_CHECK( esp_smartconfig_start(&cfg) );
     while (1) {
         uxBits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY); 
@@ -241,7 +241,7 @@ static void btn_handle(void* arg)
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)){
             count++;
             ESP_LOGI(TAG, "Button detect!");
-            if(xQueueReceive(gpio_evt_queue, &io_num, 1000/portTICK_PERIOD_MS) == 0)
+            if(xQueueReceive(gpio_evt_queue, &io_num, 2000/portTICK_PERIOD_MS) == 0)
             {
                 if(count == 2){
                     ESP_LOGI(TAG, "led toggle");
@@ -254,12 +254,22 @@ static void btn_handle(void* arg)
                         sprintf(mess, "{\"led\": %d, \"status\": \"on\"}", pin);
                     }
                     esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
+                    while(xQueueReceive(mqttQueue, buffer, 20000/portTICK_PERIOD_MS)==0)
+                        {
+                        esp_mqtt_client_publish(client, "messages/messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update", 
+                                                                                                mess, strlen(mess), 0,0);
+                        }  
                 }
                 else if (count ==4){
                     ESP_LOGI(TAG, "Smart config!");
+                    esp_mqtt_client_stop(client);
                     esp_wifi_disconnect();
                     esp_wifi_stop();
-                    initialise_wifi();
+                    esp_wifi_start();
+                    xTimerStop(timer, portMAX_DELAY);
+                }
+                else{
+                    ESP_LOGI(TAG, "Nothing");
                 }
                 count = 0;
             }
@@ -279,12 +289,11 @@ void app_main(void)
     io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    mqttQueue = xQueueCreate(10, sizeof(int));
+    mqttQueue = xQueueCreate(10, sizeof(uint32_t));
+    timer = xTimerCreate("Timer", 10000/portTICK_PERIOD_MS, pdTRUE, (void*) 0, timer_handler);
     xTaskCreate(btn_handle, "gpio_task_example", 3072, NULL, 10, NULL);
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     gpio_isr_handler_add(GPIO_NUM_0, gpio_isr_handler, (void*) GPIO_NUM_0);
     initialise_wifi();
-    //soft timer
-
 }
 
