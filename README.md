@@ -52,7 +52,7 @@ Kết quả nhận về từ MQTT Server có dạng `{"led": 2, "status": "on"}`
     ESP_LOGI(TAG, "pin: %d, status: %d", pin, status);
 ```
 ### Smartconfig và tái kích hoạt
-Khi MCU đang kết nối với wifi và được lệnh chuyển ngược lại về SmartConfig (ấn button 4 lần) thì chúng em tiến hành ngắt kết nối wifi, mqtt, ngưng softtimer gửi bản tin heartbeat và tiến hành kết nối wifi lại từ đầu
+Khi thiết bị đang kết nối với wifi và được lệnh chuyển ngược lại về SmartConfig (ấn button 4 lần) thì thiết bị ngắt kết nối wifi, mqtt, ngưng softtimer gửi bản tin heartbeat và tiến hành kết nối wifi lại từ đầu
 ```
     esp_mqtt_client_stop(client);
     esp_wifi_disconnect();
@@ -203,4 +203,33 @@ I (145876) wifi:AP's beacon interval = 102400 us, DTIM period = 1
 I (146626) esp_netif_handlers: sta ip: 192.168.1.3, mask: 255.255.255.0, gw: 192.168.1.1
 ```
 
-## Một vài vấn đề
+## Khó khăn
+Một vấn đề em đang gặp phải là ngay khi subcribe được đến topic thì chúng em lập tức nhận được bản tin `{"code":1}`. Do khả năng sử dụng flow engine còn hạn chế nên chúng em hiện chưa thể fix được lỗi trên. 
+```
+I (21257) PJ: MQTT_EVENT_CONNECTED
+I (21277) PJ: Event dispatched from event loop base=MQTT_EVENTS, event_id=3
+I (21277) PJ: MQTT_EVENT_SUBSCRIBED, msg_id=880
+I (21277) PJ: Event dispatched from event loop base=MQTT_EVENTS, event_id=6
+I (21287) PJ: MQTT_EVENT_DATA
+DATA={"code":1}
+I (21287) PJ: code response received
+```
+Kết quả thử bản tin trên mqttBox chúng em có thử tại `test1.png, test2.png & test3.png`
+- Test 1: Vừa mới subcribe lên topic `/status` ngay lập tức nhận được bản tin `{"code":1}`
+- Test 2: Gửi bản tin lên `/status` nhận về đúng bản tin đó và không có bản tin thêm
+- Test 3: Gửi bản tin lên `/update` ở `/status` nhận về bản tin đó và thêm 1 bản tin `{"Code": 1}`
+
+Do đó, chúng em đặt một cờ lệnh `mqtt_sent` để xác định bản tin `{"code":1}` khi nào đúng là bản tin gửi về cần xác nhận. Mỗi khi Publish bản tin, chúng em đặt cờ lên 1, nếu như có bản tin gửi về mà cờ đang là 1 thì mới gửi lên Queue
+```
+    esp_mqtt_client_publish(client, "messages/892cae43-bd95-4a6f-a257-5fba424ab86f/update",mess, strlen(mess),0,0);
+    mqtt_sent = 1;
+    .....
+    if(mqtt_sent == 1){
+            xQueueSend(mqttQueue, (void*) data , portMAX_DELAY);
+            mqtt_sent = 0;
+        }
+```
+
+Trên đây là những kết quả làm việc được của nhóm chúng em về bài thi. Do thời gian gấp rút nên có thể một số trường hợp dẫn đến việc hardfault hay reboot chúng em chưa thử được hết. Tuy nhiên với những kết quả được ghi trên COM monitor chúng em hi vọng có thể đáp ứng được phần nào về yêu cầu của bài.
+
+Chúng em xin cám ơn.
