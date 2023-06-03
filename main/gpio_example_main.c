@@ -64,9 +64,9 @@ void timer_handler(){
     ESP_LOGI(TAG, "TOPIC heartbeat Publish");
     const char message[] = "{\"heartbeat\":1}";
     esp_mqtt_client_publish(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", message, strlen(message), 0,0);
-    while(xQueueReceive(mqttQueue, mqtt_buffer, 20000/portTICK_PERIOD_MS)==0){
-        esp_mqtt_client_publish(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", message, strlen(message), 0,0);
-    }
+    // while(xQueueReceive(mqttQueue, mqtt_buffer, 20000/portTICK_PERIOD_MS)==0){
+    //     esp_mqtt_client_publish(client,"messages/892cae43-bd95-4a6f-a257-5fba424ab86f/status", message, strlen(message), 0,0);
+    // }
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -100,8 +100,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
         printf("DATA=%.*s\r\n", event->data_len, event->data);
         if((strstr(event->topic,"status"))&&(strstr(event->data,"code"))){
-            ESP_LOGI(TAG, "code response received");
-            xQueueSend(mqttQueue, (void*) 1, portMAX_DELAY);
+            // ESP_LOGI(TAG, "code response received");
+            // xQueueSend(mqttQueue, (void*) 1, portMAX_DELAY);
         }
         else{
             data = event->data;
